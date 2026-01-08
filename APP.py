@@ -134,23 +134,35 @@ def guia_visual(texto_markdown):
 
 @st.cache_data
 def carregar_dados():
-    base_path = r'data' 
-    caminho_rec = os.path.join(base_path, 'receitas', 'receita.csv')
+    # Pega o diretório onde este script (app.py) está rodando
+    diretorio_raiz = os.path.dirname(__file__)
     
+    # Monta o caminho para a pasta data de forma segura
+    path_receitas = os.path.join(diretorio_raiz, 'data', 'receitas', 'receita.csv')
+    path_despesas = os.path.join(diretorio_raiz, 'data', 'despesas', 'despesas_unificado.csv')
+    
+    # --- Debug (Opcional: Ajuda a ver erros no console do Streamlit se o arquivo não existir) ---
+    if not os.path.exists(path_receitas):
+        st.error(f"Erro: Arquivo não encontrado em {path_receitas}")
+        st.stop()
+        
     # Conversores para garantir que colunas numéricas sejam lidas corretamente
     conversores_rec = {'valor_arrecadado': limpar_moeda, 'valor_orcado': limpar_moeda}
     
     # Tratamento de encoding (UTF-8 padrão, com fallback para Latin1 se necessário)
     try:
-        df_rec = pd.read_csv(caminho_rec, sep=';', encoding='utf-8', converters=conversores_rec)
+        df_rec = pd.read_csv(path_receitas, sep=';', encoding='utf-8', converters=conversores_rec)
     except:
-        df_rec = pd.read_csv(caminho_rec, sep=';', encoding='latin1', converters=conversores_rec)
+        df_rec = pd.read_csv(path_receitas, sep=';', encoding='latin1', converters=conversores_rec)
         
     df_rec.rename(columns={'ano': 'ano_exercicio', 'valor_arrecadado': 'valor_realizado'}, inplace=True)
     
-    # Carregamento de Despesas (Arquivo Unificado)
-    caminho_desp = os.path.join(base_path, 'despesas', 'despesas_unificado.csv')
-    df_desp = pd.read_csv(caminho_desp, sep=';', encoding='utf-8', decimal=',')
+    # Carregamento de Despesas
+    try:
+        df_desp = pd.read_csv(path_despesas, sep=';', encoding='utf-8', decimal=',')
+    except:
+        # Fallback caso o encoding seja diferente
+        df_desp = pd.read_csv(path_despesas, sep=';', encoding='latin1', decimal=',')
     
     # Padronização de nomes de colunas
     df_desp.rename(columns={
@@ -168,7 +180,18 @@ def carregar_dados():
     return df_rec, df_desp
 
 df_receita, df_despesa = carregar_dados()
-df_sankey_ready = pd.read_csv(os.path.join(r'data', 'dados_sankey_tcc.csv'), sep=';', decimal=',')
+
+# Caminho seguro para o arquivo do Sankey
+diretorio_raiz = os.path.dirname(__file__)
+path_sankey = os.path.join(diretorio_raiz, 'data', 'dados_sankey_tcc.csv')
+
+# Verifica se existe antes de ler
+if os.path.exists(path_sankey):
+    df_sankey_ready = pd.read_csv(path_sankey, sep=';', decimal=',')
+else:
+    st.error("Arquivo 'dados_sankey_tcc.csv' não encontrado na pasta data.")
+    # Cria um dataframe vazio para não quebrar o app
+    df_sankey_ready = pd.DataFrame()
 
 # ==============================================================================
 # 6. SIDEBAR: FILTROS GLOBAIS
@@ -1359,4 +1382,5 @@ elif visao_selecionada == "APENAS RECEITAS":
                 )
             },
             use_container_width=True, hide_index=True
+
         )
